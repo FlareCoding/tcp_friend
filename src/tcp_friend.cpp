@@ -6,7 +6,12 @@
 #include <Windows.h>
 #pragma comment(lib, "Ws2_32.lib")
 #else
-
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
 #endif
 
 namespace tcp_friend {
@@ -29,6 +34,7 @@ namespace tcp_friend {
 #ifdef WIN32
 		closesocket(handle);
 #else
+		::close(handle);
 #endif
 	}
 
@@ -37,6 +43,19 @@ namespace tcp_friend {
 		unsigned long mode = (unsigned long)blocking;
 		ioctlsocket(handle, FIONBIO, &mode);
 #else
+		int flags = fcntl(static_cast<int>(handle), F_GETFL, 0);
+		if (flags == -1) {
+			printf("Error retrieving current socket blocking state\n");
+			return;
+		}
+		
+		flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+		
+		int result = fcntl(static_cast<int>(handle), F_SETFL, flags);
+		if (result == -1) {
+			printf("Failed to set socket blocking state\n");
+			return;
+		}
 #endif
 	}
 	
@@ -44,6 +63,7 @@ namespace tcp_friend {
 #ifdef WIN32
 		return send(handle, buffer, static_cast<int>(size), 0);
 #else
+		return send(static_cast<int>(handle), buffer, size, 0);
 #endif
 	}
 
@@ -51,6 +71,7 @@ namespace tcp_friend {
 #ifdef WIN32
 		return recv(handle, buffer, static_cast<int>(allowed_buffer_size), 0);
 #else
+		return recv(static_cast<int>(handle), buffer, allowed_buffer_size, 0);
 #endif
 	}
 
@@ -96,6 +117,29 @@ namespace tcp_friend {
 		freeaddrinfo(addrinforesult);
 		return listenfd;
 #else
+		int listenfd = socket(AF_INET, SOCK_STREAM, 0);
+		if (listenfd <= 0) {
+			printf("Failed to create listening socket\n");
+			return 0;
+		}
+		
+		sockaddr_in serv_addr;
+		memset(&serv_addr, 0, sizeof(serv_addr));
+		
+		serv_addr.sin_family = AF_INET;
+		serv_addr.sin_port = htons(port);
+		if (inet_pton(AF_INET, ipv4.c_str(), &(serv_addr.sin_addr)) <= 0) {
+			printf("Invalid host address\n");
+			return 0;
+		}
+		
+		int result = bind(listenfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+		if (result < 0) {
+			printf("Failed to bind listening socket\n");
+			return 0;
+		}
+
+		return static_cast<uint64_t>(listenfd);
 #endif
 	}
 
@@ -115,6 +159,13 @@ namespace tcp_friend {
 
 		return result;
 #else
+		int result = listen(listenfd, connections);
+    	if (result < 0) {
+        	printf("Failed to listen for connections\n");
+        	return -1;
+    	}
+
+		return result;
 #endif
 	}
 
@@ -143,6 +194,23 @@ namespace tcp_friend {
 		client_port = port;
 		return connfd;
 #else
+		sockaddr_in client_addr;
+		memset(&client_addr, 0, sizeof(client_addr));
+
+		socklen_t clilen = sizeof(client_addr);
+		int connfd = accept(listenfd, (struct sockaddr*)&client_addr, (socklen_t*)&clilen);
+		if (connfd < 0) {
+			printf("Failed to accept client connection\n");
+			return 0;
+		}
+
+		char ip_buffer[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &(client_addr.sin_addr), ip_buffer, INET_ADDRSTRLEN);
+		unsigned short port = ntohs(client_addr.sin_port);
+
+		client_ipv4 = std::string(ip_buffer);
+		client_port = port;
+		return static_cast<uint64_t>(connfd);
 #endif
 	}
 
@@ -178,10 +246,33 @@ namespace tcp_friend {
 
 		return connfd;
 #else
+		int connfd = socket(AF_INET, SOCK_STREAM, 0);
+		if (connfd < 0) {
+			printf("Failed to create socket\n");
+			return 0;
+		}
+		
+		sockaddr_in serv_addr;
+		memset(&serv_addr, 0, sizeof(serv_addr));
+		serv_addr.sin_family = AF_INET;
+		serv_addr.sin_port = htons(port);
+		if (inet_pton(AF_INET, ipv4.c_str(), &(serv_addr.sin_addr)) <= 0) {
+			printf("Invalid host address\n");
+			return 0;
+		}
+		
+		int result = connect(connfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+		if (result < 0) {
+			printf("Failed to connect to the server\n");
+			return 0;
+		}
+
+		return static_cast<uint64_t>(connfd);
 #endif
 	}
 
 	void tcp_connection_socket::set_blocking(bool blocking) {
+		m_blocking = blocking;
 		tcp_socket_base_impl::set_blocking_state_impl(m_handle, static_cast<bool>(blocking));
 	}
 	
