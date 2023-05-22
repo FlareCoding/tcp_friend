@@ -61,7 +61,7 @@ public:
 	bool listen(uint32_t connections);
 	void close();
 
-	tcp_connection_socket accept();
+	std::shared_ptr<tcp_connection_socket> accept();
 
 private:
 	uint64_t m_listening_handle = 0;
@@ -69,7 +69,7 @@ private:
 
 class tcp_client_socket {
 public:
-	static tcp_connection_socket connect(const std::string& ipv4, int port);
+	static std::shared_ptr<tcp_connection_socket> connect(const std::string& ipv4, int port);
 };
 }
 

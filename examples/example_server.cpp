@@ -23,24 +23,24 @@ int main() {
 	}
 
 	// Accept the incoming connection
-	tcp_connection_socket connection = server_socket.accept();
-	if (!connection.is_alive()) {
+	auto connection = server_socket.accept();
+	if (!connection->is_alive()) {
 		printf("Failed to accept a connection on port %i\n", SERVER_PORT);
 		server_socket.close();
 		return 1;
 	}
 
-	printf("'%s' connected on port %i\n", connection.get_address().c_str(), connection.get_port());
+	printf("'%s' connected on port %i\n", connection->get_address().c_str(), connection->get_port());
 
 	// Receive a message from the client
 	std::string msg;
-	connection.recv_string(msg);
+	connection->recv_string(msg);
 	printf("[*] Client said '%s'\n", msg.c_str());
 
 	// Send a server response back
-	connection.send_string("hello from server");
+	connection->send_string("hello from server");
 
-	connection.close();
+	connection->close();
 	server_socket.close();
 	return 0;
 }

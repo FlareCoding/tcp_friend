@@ -329,30 +329,30 @@ namespace tcp_friend {
 		tcp_socket_base_impl::close(m_listening_handle);
 	}
 
-	tcp_connection_socket tcp_server_socket::accept() {
+	std::shared_ptr<tcp_connection_socket> tcp_server_socket::accept() {
 		std::string client_ip;
 		int client_port;
 		uint64_t handle = tcp_socket_base_impl::server_accept_impl(m_listening_handle, client_ip, client_port);
 
-		tcp_connection_socket socket;
-		socket.m_alive = (handle != 0);
-		socket.m_blocking = true;
-		socket.m_handle = handle;
-		socket.m_ipv4 = client_ip;
-		socket.m_port = client_port;
+		auto socket = std::make_shared<tcp_connection_socket>();
+		socket->m_alive = (handle != 0);
+		socket->m_blocking = true;
+		socket->m_handle = handle;
+		socket->m_ipv4 = client_ip;
+		socket->m_port = client_port;
 
 		return socket;
 	}
 
-	tcp_connection_socket tcp_client_socket::connect(const std::string& ipv4, int port) {
+	std::shared_ptr<tcp_connection_socket> tcp_client_socket::connect(const std::string& ipv4, int port) {
 		uint64_t handle = tcp_socket_base_impl::client_connect_impl(ipv4, port);
 
-		tcp_connection_socket socket;
-		socket.m_alive = (handle != 0);
-		socket.m_blocking = true;
-		socket.m_handle = handle;
-		socket.m_ipv4 = ipv4;
-		socket.m_port = port;
+		auto socket = std::make_shared<tcp_connection_socket>();
+		socket->m_alive = (handle != 0);
+		socket->m_blocking = true;
+		socket->m_handle = handle;
+		socket->m_ipv4 = ipv4;
+		socket->m_port = port;
 
 		return socket;
 	}
